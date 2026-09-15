@@ -1,273 +1,79 @@
 # Interactive BI Analytics Dashboard
 
-A professional Business Intelligence dashboard built with Streamlit for enterprise-grade analytics and reporting. Features advanced filtering, multiple visualization types, period comparison, and comprehensive data export capabilities.
+Explore which regions, products and customer segments contribute to revenue and profit, then inspect and export the supporting records.
 
-## Overview
+An independent Streamlit portfolio project demonstrating filters, aggregations, KPI presentation and interactive exploration. **The data is synthetic, generated locally with a fixed random seed. It is not a live business feed or an enterprise deployment.**
 
-This dashboard demonstrates production-ready BI development with focus on interactivity, performance, and user experience. Built for business analysts, data teams, and executives who need self-service analytics without relying on static reports.
+[Portfolio case study](https://amitkumaranalytics.com/projects/interactive-analytics-dashboard) · [About Amit](https://amitkumaranalytics.com)
 
-## Key Features
+## What to explore
 
-### Interactive Analysis
-- **Multi-dimensional Filtering**: Date range, region, product line, customer segment, and sales channel
-- **Quick Date Presets**: Last 30/90 days, 6 months, year-to-date, or custom range
-- **Period Comparison**: Compare current period with previous period automatically
-- **Real-time Updates**: All charts and metrics update instantly when filters change
+| View | Question it helps investigate |
+|---|---|
+| Overview | How do revenue and profit vary over time, by region and by channel? |
+| Product Analysis | Which product lines contribute revenue, profit and orders? |
+| Customer Insights | How do revenue and average order value differ across segments? |
+| Detailed Data | Which records support the displayed summaries? |
 
-### Visualization Types
-- **Time Series Analysis**: Revenue trends with optional trend lines
-- **Geographic Distribution**: Regional performance comparison
-- **Product Analytics**: Multi-axis charts comparing revenue and profitability
-- **Customer Segmentation**: Segment analysis by revenue and average order value
-- **Channel Performance**: Sales distribution across channels
+The sidebar filters by date, region, product, customer segment and sales channel. Daily, weekly and monthly aggregations support different reporting views. CSV downloads provide filtered records, monthly summaries and product analysis.
 
-### Advanced Capabilities
-- **Aggregation Levels**: Switch between daily, weekly, and monthly views
-- **Statistical Summaries**: Automated descriptive statistics
-- **Sortable Data Tables**: Interactive tables with custom sorting
-- **Multiple Export Formats**: Download filtered data, summaries, and analysis reports
-- **Responsive Design**: Professional interface that works on all screen sizes
+## Data and metric definitions
 
-## Installation
+`load_data()` generates one row per calendar day from January 2023 through December 2024. Each row receives a region, product, segment and channel; it represents a synthetic daily observation, not an individual customer transaction.
 
-### Prerequisites
-- Python 3.8 or higher
-- pip package manager
+- Revenue and orders: sums across selected rows.
+- Profit: generated revenue minus generated cost.
+- Displayed profit margin: the arithmetic mean of row-level margins, **not** total profit divided by total revenue.
+- Segment and product average order value: aggregated revenue divided by aggregated orders.
+- Date presets are relative to the latest date in the sample, not today's date.
 
-### Setup
+The previous-period option is exploratory. Its inclusive date boundaries currently produce unequal period lengths, and early selections may lack a complete comparison period. Treat its percentage changes accordingly.
 
-1. Clone or download this repository
+## Run locally
 
-2. Navigate to project directory:
+Use **Python 3.12 or newer**: the current application uses f-string syntax introduced in Python 3.12.
+
 ```bash
+git clone https://github.com/amit1820/interactive-bi-analytics-app.git
 cd interactive-bi-analytics-app
+python -m venv .venv
 ```
 
-3. Create virtual environment (recommended):
+Activate the environment:
+
+- Windows PowerShell: `.venv\Scripts\Activate.ps1`
+- macOS/Linux: `source .venv/bin/activate`
+
+Then:
+
 ```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+python -m pip install -r requirements.txt
+python -m streamlit run app.py
 ```
 
-4. Install dependencies:
-```bash
-pip install -r requirements.txt
-```
+Open the local URL printed by Streamlit. No API key, database or uploaded dataset is required.
 
-5. Run the dashboard:
-```bash
-streamlit run app.py
-```
+## A short walkthrough
 
-6. Open browser to http://localhost:8501
+1. Start with all dimensions selected and the default six-month sample window.
+2. Review revenue, profit and orders in Overview.
+3. Select one region and compare products and customer segments.
+4. Inspect the underlying daily observations in Detailed Data.
+5. Export a CSV to examine the same filtered population outside the app.
 
-## Usage Guide
+## Implementation
 
-### Filtering Data
+`app.py` contains cached sample-data generation, sidebar controls, pandas filtering and aggregation, Plotly charts and CSV exports. `requirements.txt` lists the dependencies.
 
-**Sidebar Controls:**
-- Use date presets for quick time period selection
-- Select multiple values in dimension filters (hold Ctrl/Cmd for multi-select)
-- Enable period comparison to see growth metrics
-- Toggle trend lines and change aggregation levels
+To connect real data, replace `load_data()` and define its grain, currency, date coverage and validation rules before reusing the KPI calculations.
 
-### Navigating Tabs
+## Current limits
 
-1. **Overview**: High-level performance metrics and trends
-2. **Product Analysis**: Product line comparison and profitability
-3. **Customer Insights**: Segment performance and average order values
-4. **Detailed Data**: Transaction-level data with sorting and filtering
+- Synthetic data cannot establish measured business impact.
+- No authentication, persistent database or scheduled ingestion is implemented.
+- Empty or very small selections need stronger handling, particularly when fitting trend lines.
+- Period comparison coverage and metric definitions need review before production use.
+- Dependencies use minimum versions rather than a reproducible lockfile.
+- Exports are CSV; Excel and PDF exports are not implemented.
 
-### Exporting Data
-
-Bottom of dashboard provides four export options:
-- Filtered transaction data (based on current filters)
-- Monthly summary aggregations
-- Product performance analysis
-- Quick stats showing current record count
-
-All exports include timestamp in filename for version tracking.
-
-## Data Structure
-
-The dashboard expects data with the following schema:
-
-```
-Date: timestamp
-Revenue: float (dollars)
-Orders: integer (count)
-Region: string (North America, Europe, Asia Pacific, Latin America)
-Product: string (product line names)
-Customer_Segment: string (Enterprise, Mid-Market, Small Business)
-Channel: string (Direct Sales, Partner, Online)
-```
-
-Calculated fields:
-- Profit (Revenue minus Cost)
-- Profit Margin (percentage)
-- Average Order Value
-
-## Customization
-
-### Connecting Your Data
-
-Replace the `load_data()` function around line 88:
-
-```python
-@st.cache_data
-def load_data():
-    # Replace with your data source
-    df = pd.read_csv('your_data.csv')
-    # Or connect to database
-    # df = pd.read_sql(query, connection)
-    return df
-```
-
-### Modifying Filters
-
-Add new filter in sidebar section (around line 115):
-
-```python
-new_dimension = st.multiselect(
-    "Your Dimension Name",
-    options=sorted(df['column_name'].unique()),
-    default=sorted(df['column_name'].unique())
-)
-```
-
-Apply filter in filtering logic (around line 160):
-```python
-filtered_df = filtered_df[filtered_df['column_name'].isin(new_dimension)]
-```
-
-### Adding Charts
-
-Use Plotly for interactive visualizations:
-
-```python
-import plotly.graph_objects as go
-
-fig = go.Figure(data=[
-    go.Bar(x=data['category'], y=data['value'])
-])
-
-fig.update_layout(
-    plot_bgcolor='white',
-    paper_bgcolor='white'
-)
-
-st.plotly_chart(fig, use_container_width=True)
-```
-
-### Color Scheme
-
-Professional color palette defined in CSS:
-- Primary: #2c3e50 (dark blue-gray)
-- Secondary: #3498db (blue)
-- Accent: #e74c3c (red for warnings)
-- Success: #28a745 (green for positive metrics)
-- Background: #f8f9fa (light gray)
-
-Modify in the CSS section around line 18.
-
-## Technical Architecture
-
-### Component Structure
-```
-app.py                    # Main application
-├── Data Loading          # Cached data ingestion
-├── Sidebar Filters       # Filter controls
-├── KPI Cards            # Metric summary
-├── Tab Navigation       # Multi-view interface
-│   ├── Overview         # Executive summary
-│   ├── Product Analysis # Product performance
-│   ├── Customer Insights # Segment analysis
-│   └── Detailed Data    # Transaction table
-└── Export Controls      # Data download
-```
-
-### Performance Optimization
-- `@st.cache_data` for data loading (prevents reloading on filter changes)
-- Efficient pandas groupby operations
-- Plotly for hardware-accelerated rendering
-- Conditional rendering based on user selections
-
-### Design Principles
-- Clean, professional interface without unnecessary decorations
-- Consistent spacing and typography using Inter font family
-- High contrast ratios for accessibility
-- Logical information hierarchy
-- Mobile-responsive layout with Streamlit columns
-
-## Use Cases
-
-**Sales Operations**
-- Daily revenue monitoring
-- Regional performance tracking
-- Channel effectiveness analysis
-
-**Product Management**
-- Product line profitability
-- Cross-product comparisons
-- Margin analysis
-
-**Executive Reporting**
-- Period-over-period growth
-- High-level KPI tracking
-- Export for board presentations
-
-**Business Analysis**
-- Customer segmentation insights
-- Trend identification
-- Data export for deeper analysis
-
-## Dependencies
-
-- streamlit 1.28+ : Web application framework
-- pandas 2.0+ : Data manipulation
-- plotly 5.18+ : Interactive visualizations
-- numpy 1.24+ : Numerical computations
-
-All dependencies listed in requirements.txt
-
-## Future Enhancements
-
-Planned features for future releases:
-- Database connectivity (PostgreSQL, MySQL, Snowflake)
-- User authentication and role-based access
-- Scheduled email reports
-- PDF export with branded templates
-- Forecasting models
-- Anomaly detection
-- Custom metric builder
-- Dashboard sharing and collaboration
-
-## License
-
-MIT License - free for commercial and personal use
-
-## Support
-
-For questions or issues:
-- Check existing documentation
-- Review code comments
-- Test with sample data first
-- Verify all dependencies installed
-
-## Author
-
-Amit Kumar
-- LinkedIn: linkedin.com/in/amit1820
-- GitHub: github.com/amit1820
-
-## Contributing
-
-Contributions welcome. Please ensure:
-- Code follows existing style
-- Add comments for complex logic
-- Test thoroughly before submitting
-- Update documentation as needed
-
----
-
-Built with Streamlit for professional business intelligence
+Built by [Amit Kumar](https://amitkumaranalytics.com).
