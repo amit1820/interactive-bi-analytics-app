@@ -1,5 +1,6 @@
 # app.py - Interactive BI Analytics Dashboard
 import streamlit as st
+from chart_style import style_chart
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -415,7 +416,7 @@ with tab1:
         )
     )
     
-    st.plotly_chart(fig_revenue, use_container_width=True)
+    st.plotly_chart(style_chart(fig_revenue), use_container_width=True, theme=None)
     
     # Two column charts
     col1, col2 = st.columns(2)
@@ -446,7 +447,7 @@ with tab1:
             margin=dict(l=20, r=20, t=20, b=20)
         )
         
-        st.plotly_chart(fig_region, use_container_width=True)
+        st.plotly_chart(style_chart(fig_region), use_container_width=True, theme=None)
     
     with col2:
         st.subheader("Channel Performance")
@@ -481,7 +482,7 @@ with tab1:
             )
         )
         
-        st.plotly_chart(fig_channel, use_container_width=True)
+        st.plotly_chart(style_chart(fig_channel), use_container_width=True, theme=None)
 
 with tab2:
     st.subheader("Product Line Performance")
@@ -547,7 +548,7 @@ with tab2:
         hovermode='x unified'
     )
     
-    st.plotly_chart(fig_product, use_container_width=True)
+    st.plotly_chart(style_chart(fig_product), use_container_width=True, theme=None)
     
     # Product details table
     st.subheader("Product Performance Details")
@@ -614,7 +615,7 @@ with tab3:
             showlegend=False
         )
         
-        st.plotly_chart(fig_segment, use_container_width=True)
+        st.plotly_chart(style_chart(fig_segment), use_container_width=True, theme=None)
     
     with col2:
         # AOV comparison
@@ -647,7 +648,7 @@ with tab3:
             showlegend=False
         )
         
-        st.plotly_chart(fig_aov, use_container_width=True)
+        st.plotly_chart(style_chart(fig_aov), use_container_width=True, theme=None)
 
 with tab4:
     st.subheader("Detailed Daily Observations")

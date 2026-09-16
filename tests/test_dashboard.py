@@ -111,3 +111,20 @@ def test_no_matching_prior_records_is_hidden():
     assert not at.exception
     assert not at.session_state['comparison_ready']
     assert 'no previous-period records' in at.info[0].value
+
+
+def test_all_charts_use_readable_explicit_axes_and_legends():
+    import json
+    at = app()
+    charts = at.get('plotly_chart')
+    assert len(charts) == 6
+    for chart in charts:
+        layout = json.loads(chart.proto.spec)['layout']
+        assert layout['font']['color'] == '#243447'
+        assert layout['legend']['font']['color'] == '#243447'
+        for key, axis in layout.items():
+            if key.startswith(('xaxis', 'yaxis')):
+                assert axis['showticklabels']
+                assert axis['tickfont']['color'] == '#243447'
+                assert axis['title']['font']['color'] == '#243447'
+                assert axis['automargin']
