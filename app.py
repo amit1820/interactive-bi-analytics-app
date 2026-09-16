@@ -4,6 +4,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
+from metrics import previous_period, coverage_complete, percentage_change, profit_margin
 import numpy as np
 
 # Page config
@@ -163,7 +164,7 @@ df = load_data()
 
 # Header
 st.title("Business Intelligence Dashboard")
-st.markdown("Real-time analytics and performance monitoring")
+st.markdown("Interactive analytics using synthetic daily observations (2023-2024)")
 st.markdown("---")
 
 # Sidebar filters
@@ -190,11 +191,11 @@ with st.sidebar:
     else:
         max_date = df['Date'].max()
         if date_preset == "Last 30 Days":
-            start_date = max_date - timedelta(days=30)
+            start_date = max_date - timedelta(days=29)
         elif date_preset == "Last 90 Days":
-            start_date = max_date - timedelta(days=90)
+            start_date = max_date - timedelta(days=89)
         elif date_preset == "Last 6 Months":
-            start_date = max_date - timedelta(days=180)
+            start_date = max_date - pd.DateOffset(months=6) + timedelta(days=1)
         else:  # Year to Date
             start_date = pd.Timestamp(f"{max_date.year}-01-01")
         date_range = (start_date.date(), max_date.date())
@@ -245,38 +246,42 @@ with st.sidebar:
         index=2
     )
 
-# Apply filters
-if len(date_range) == 2:
-    filtered_df = df[
-        (df['Date'].dt.date >= date_range[0]) &
-        (df['Date'].dt.date <= date_range[1]) &
-        (df['Region'].isin(regions)) &
-        (df['Product'].isin(products)) &
-        (df['Customer_Segment'].isin(segments)) &
-        (df['Channel'].isin(channels))
-    ]
-else:
-    filtered_df = df[
-        (df['Region'].isin(regions)) &
-        (df['Product'].isin(products)) &
-        (df['Customer_Segment'].isin(segments)) &
-        (df['Channel'].isin(channels))
-    ]
+# A partially selected range must not silently switch to all-time data.
+if len(date_range) != 2:
+    st.info("Select both a start and an end date to view results.")
+    st.stop()
 
-# Calculate comparison period if enabled
-if enable_comparison and len(date_range) == 2:
-    period_length = (date_range[1] - date_range[0]).days
-    comparison_start = date_range[0] - timedelta(days=period_length)
-    comparison_end = date_range[0] - timedelta(days=1)
-    
-    comparison_df = df[
-        (df['Date'].dt.date >= comparison_start) &
-        (df['Date'].dt.date <= comparison_end) &
-        (df['Region'].isin(regions)) &
-        (df['Product'].isin(products)) &
-        (df['Customer_Segment'].isin(segments)) &
-        (df['Channel'].isin(channels))
+start_date, end_date = date_range
+if start_date > end_date:
+    st.info("The end date must be on or after the start date.")
+    st.stop()
+
+dimension_mask = (
+    df['Region'].isin(regions) & df['Product'].isin(products)
+    & df['Customer_Segment'].isin(segments) & df['Channel'].isin(channels)
+)
+filtered_df = df.loc[
+    dimension_mask & df['Date'].dt.date.between(start_date, end_date)
+].copy()
+if filtered_df.empty:
+    st.info("No records match these filters. Select more dimensions or a wider date range.")
+    st.stop()
+
+st.caption(f"Selected period: {start_date:%d %b %Y} to {end_date:%d %b %Y} (inclusive).")
+comparison_ready = False
+if enable_comparison:
+    comparison_start, comparison_end = previous_period(start_date, end_date)
+    comparison_df = df.loc[
+        dimension_mask & df['Date'].dt.date.between(comparison_start, comparison_end)
     ]
+    st.caption(f"Previous period: {comparison_start:%d %b %Y} to {comparison_end:%d %b %Y} (inclusive).")
+    if not (coverage_complete(df['Date'], comparison_start, comparison_end)
+            and coverage_complete(df['Date'], start_date, end_date)):
+        st.info("Comparison unavailable: the sample does not cover every date in both periods.")
+    elif comparison_df.empty:
+        st.info("Comparison unavailable: no previous-period records match these filters.")
+    else:
+        comparison_ready = True
 
 # KPI Section
 st.header("Key Performance Indicators")
@@ -287,56 +292,43 @@ col1, col2, col3, col4 = st.columns(4)
 total_revenue = filtered_df['Revenue'].sum()
 total_orders = filtered_df['Orders'].sum()
 total_profit = filtered_df['Profit'].sum()
-avg_profit_margin = filtered_df['Profit_Margin'].mean()
+avg_profit_margin = profit_margin(total_profit, total_revenue)
 
-if enable_comparison and len(date_range) == 2:
+if comparison_ready:
     comp_revenue = comparison_df['Revenue'].sum()
     comp_orders = comparison_df['Orders'].sum()
     comp_profit = comparison_df['Profit'].sum()
-    comp_margin = comparison_df['Profit_Margin'].mean()
+    comp_margin = profit_margin(comp_profit, comp_revenue)
     
-    revenue_change = ((total_revenue - comp_revenue) / comp_revenue * 100) if comp_revenue > 0 else 0
-    orders_change = ((total_orders - comp_orders) / comp_orders * 100) if comp_orders > 0 else 0
-    profit_change = ((total_profit - comp_profit) / comp_profit * 100) if comp_profit > 0 else 0
+    revenue_change = percentage_change(total_revenue, comp_revenue)
+    orders_change = percentage_change(total_orders, comp_orders)
+    profit_change = percentage_change(total_profit, comp_profit)
     margin_change = avg_profit_margin - comp_margin
 else:
     revenue_change = orders_change = profit_change = margin_change = None
 
-with col1:
-    st.markdown(f"""
-    <div class="metric-card">
-        <div class="metric-label">Total Revenue</div>
-        <div class="metric-value">${total_revenue:,.0f}</div>
-        {f'<div class="metric-change {"negative" if revenue_change < 0 else ""}">{revenue_change:+.1f}% vs Previous Period</div>' if revenue_change is not None else ''}
-    </div>
-    """, unsafe_allow_html=True)
+def metric_card(column, label, value, change, suffix="%"):
+    change_html = ""
+    if change is not None:
+        css_class = "negative" if change < 0 else ""
+        change_html = (
+            f'<div class="metric-change {css_class}">'
+            f'{change:+.1f}{suffix} vs Previous Period</div>'
+        )
+    elif comparison_ready:
+        change_html = '<div class="metric-label">Change unavailable: zero or negative baseline</div>'
+    with column:
+        st.markdown(
+            f'<div class="metric-card"><div class="metric-label">{label}</div>'
+            f'<div class="metric-value">{value}</div>{change_html}</div>',
+            unsafe_allow_html=True,
+        )
 
-with col2:
-    st.markdown(f"""
-    <div class="metric-card">
-        <div class="metric-label">Total Orders</div>
-        <div class="metric-value">{total_orders:,}</div>
-        {f'<div class="metric-change {"negative" if orders_change < 0 else ""}">{orders_change:+.1f}% vs Previous Period</div>' if orders_change is not None else ''}
-    </div>
-    """, unsafe_allow_html=True)
-
-with col3:
-    st.markdown(f"""
-    <div class="metric-card">
-        <div class="metric-label">Total Profit</div>
-        <div class="metric-value">${total_profit:,.0f}</div>
-        {f'<div class="metric-change {"negative" if profit_change < 0 else ""}">{profit_change:+.1f}% vs Previous Period</div>' if profit_change is not None else ''}
-    </div>
-    """, unsafe_allow_html=True)
-
-with col4:
-    st.markdown(f"""
-    <div class="metric-card">
-        <div class="metric-label">Profit Margin</div>
-        <div class="metric-value">{avg_profit_margin:.1f}%</div>
-        {f'<div class="metric-change {"negative" if margin_change < 0 else ""}">{margin_change:+.1f}pp vs Previous Period</div>' if margin_change is not None else ''}
-    </div>
-    """, unsafe_allow_html=True)
+metric_card(col1, "Total Revenue", f"${total_revenue:,.0f}", revenue_change)
+metric_card(col2, "Total Orders", f"{total_orders:,}", orders_change)
+metric_card(col3, "Total Profit", f"${total_profit:,.0f}", profit_change)
+metric_card(col4, "Profit Margin", f"{avg_profit_margin:.1f}%", margin_change, "pp")
+st.caption("Profit margin = total profit / total revenue. Margin changes are percentage points.")
 
 st.markdown("---")
 
@@ -383,7 +375,7 @@ with tab1:
         hovertemplate='%{x}<br>Revenue: $%{y:,.0f}<extra></extra>'
     ))
     
-    if show_trend:
+    if show_trend and len(trend_data) >= 2:
         # Add trend line
         z = np.polyfit(range(len(trend_data)), trend_data['Revenue'], 1)
         p = np.poly1d(z)
@@ -396,6 +388,9 @@ with tab1:
             hovertemplate='Trend: $%{y:,.0f}<extra></extra>'
         ))
     
+    if show_trend and len(trend_data) < 2:
+        st.caption("Trend line needs at least two time buckets; the selected data is still shown.")
+
     fig_revenue.update_layout(
         height=400,
         hovermode='x unified',
@@ -495,10 +490,10 @@ with tab2:
     product_metrics = filtered_df.groupby('Product').agg({
         'Revenue': 'sum',
         'Profit': 'sum',
-        'Orders': 'sum',
-        'Profit_Margin': 'mean'
+        'Orders': 'sum'
     }).reset_index()
     
+    product_metrics['Profit_Margin'] = product_metrics['Profit'] / product_metrics['Revenue'] * 100
     product_metrics['Avg_Order_Value'] = product_metrics['Revenue'] / product_metrics['Orders']
     product_metrics = product_metrics.sort_values('Revenue', ascending=False)
     
@@ -655,7 +650,7 @@ with tab3:
         st.plotly_chart(fig_aov, use_container_width=True)
 
 with tab4:
-    st.subheader("Detailed Transaction Data")
+    st.subheader("Detailed Daily Observations")
     
     # Options
     col1, col2, col3 = st.columns(3)
@@ -697,12 +692,12 @@ with tab4:
     display_df = display_df[display_columns].copy()
     
     st.dataframe(
-        display_df.style.format({
+        display_df.assign(**{column: display_df[column].map(fmt.format) for column, fmt in {
             'Revenue': '${:,.0f}',
             'Profit': '${:,.0f}',
             'Orders': '{:,}',
             'Profit_Margin': '{:.1f}%'
-        }),
+        }.items()}),
         use_container_width=True,
         hide_index=True,
         height=400
@@ -713,7 +708,7 @@ with tab4:
     
     summary_stats = filtered_df[['Revenue', 'Profit', 'Orders', 'Profit_Margin']].describe()
     st.dataframe(
-        summary_stats.style.format("{:,.2f}"),
+        summary_stats.round(2),
         use_container_width=True
     )
 
@@ -739,10 +734,10 @@ with col2:
     monthly_summary = filtered_df.groupby('Month').agg({
         'Revenue': 'sum',
         'Profit': 'sum',
-        'Orders': 'sum',
-        'Profit_Margin': 'mean'
+        'Orders': 'sum'
     }).reset_index()
     
+    monthly_summary['Profit_Margin'] = monthly_summary['Profit'] / monthly_summary['Revenue'] * 100
     csv_summary = monthly_summary.to_csv(index=False).encode('utf-8')
     st.download_button(
         label="Export Monthly Summary",
@@ -769,4 +764,5 @@ with col4:
 
 # Footer
 st.markdown("---")
-st.caption(f"Dashboard last updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | Data as of {df['Date'].max().strftime('%Y-%m-%d')}")
+st.caption(f"View rendered: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | Synthetic sample ends {df['Date'].max().strftime('%Y-%m-%d')}")
+

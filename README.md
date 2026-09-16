@@ -23,15 +23,15 @@ The sidebar filters by date, region, product, customer segment and sales channel
 
 - Revenue and orders: sums across selected rows.
 - Profit: generated revenue minus generated cost.
-- Displayed profit margin: the arithmetic mean of row-level margins, **not** total profit divided by total revenue.
+- Profit margin: total profit divided by total revenue, consistently applied to KPIs, product summaries and monthly exports. Margin comparisons use percentage points; daily records retain their row-level margins.
 - Segment and product average order value: aggregated revenue divided by aggregated orders.
 - Date presets are relative to the latest date in the sample, not today's date.
 
-The previous-period option is exploratory. Its inclusive date boundaries currently produce unequal period lengths, and early selections may lack a complete comparison period. Treat its percentage changes accordingly.
+Previous-period comparisons use the immediately preceding window with the same number of inclusive calendar days and the same dimension filters. Changes are hidden when either window lacks full sample coverage or no prior records match. Percentage changes with zero or negative baselines are unavailable. Last 30/90 Days includes exactly 30/90 days; Last 6 Months uses a calendar-month offset.
 
 ## Run locally
 
-Use **Python 3.12 or newer**: the current application uses f-string syntax introduced in Python 3.12.
+Use **Python 3.10 or newer**.
 
 ```bash
 git clone https://github.com/amit1820/interactive-bi-analytics-app.git
@@ -63,17 +63,25 @@ Open the local URL printed by Streamlit. No API key, database or uploaded datase
 
 ## Implementation
 
-`app.py` contains cached sample-data generation, sidebar controls, pandas filtering and aggregation, Plotly charts and CSV exports. `requirements.txt` lists the dependencies.
+`app.py` contains cached sample-data generation, sidebar controls, pandas filtering and aggregation, Plotly charts and CSV exports. `metrics.py` defines comparison windows and KPI calculations. `requirements.txt` lists the runtime dependencies.
 
 To connect real data, replace `load_data()` and define its grain, currency, date coverage and validation rules before reusing the KPI calculations.
+
+## Regression checks
+
+```bash
+python -m pip install -r requirements-dev.txt
+python -m pytest -q
+```
+
+Tests cover inclusive comparison windows, missing dates, metric calculations, exact presets, empty filters and recovery, partial date selection, unavailable comparisons and single-bucket charts. Trend lines require at least two time buckets.
 
 ## Current limits
 
 - Synthetic data cannot establish measured business impact.
 - No authentication, persistent database or scheduled ingestion is implemented.
-- Empty or very small selections need stronger handling, particularly when fitting trend lines.
-- Period comparison coverage and metric definitions need review before production use.
 - Dependencies use minimum versions rather than a reproducible lockfile.
 - Exports are CSV; Excel and PDF exports are not implemented.
 
 Built by [Amit Kumar](https://amitkumaranalytics.com).
+
