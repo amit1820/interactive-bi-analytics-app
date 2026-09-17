@@ -1,87 +1,68 @@
-# Interactive BI Analytics Dashboard
+# Revenue Atlas
 
-Explore which regions, products and customer segments contribute to revenue and profit, then inspect and export the supporting records.
+A commercial analytics workspace for understanding recurring revenue growth and customer retention. Built with Python, pandas, Plotly and Streamlit by [Amit Kumar](https://amitkumaranalytics.com).
 
-An independent Streamlit portfolio project demonstrating filters, aggregations, KPI presentation and interactive exploration. **The data is synthetic, generated locally with a fixed random seed. It is not a live business feed or an enterprise deployment.**
+**Independent portfolio project. All accounts, invoices and commercial outcomes are synthetic.** No real customer records, measured business impact or predictive claims.
 
-[Portfolio case study](https://amitkumaranalytics.com/projects/interactive-analytics-dashboard) · [About Amit](https://amitkumaranalytics.com)
+## Explore
 
-## What to explore
+- **Executive overview:** MRR, annualized run rate, active customers and net revenue retention. A calculated narrative explains the selected month's changes.
+- **Revenue movements:** a reconciled waterfall separates new business, expansion, contraction and churn. Historical stacked movements explain growth composition.
+- **Customer retention:** customer and revenue cohort heatmaps, plus comparisons at a common cohort age. Future observations remain blank.
+- **Customer explorer:** search accounts and trace their monthly balances to supporting invoices.
+- **Data & definitions:** calculation rules and a ZIP download of the linked source tables, respecting current filters and reporting month.
 
-| View | Question it helps investigate |
-|---|---|
-| Overview | How do revenue and profit vary over time, by region and by channel? |
-| Product Analysis | Which product lines contribute revenue, profit and orders? |
-| Customer Insights | How do revenue and average order value differ across segments? |
-| Detailed Data | Which records support the displayed summaries? |
+## Local setup (Windows PowerShell)
 
-The sidebar filters by date, region, product, customer segment and sales channel. Daily, weekly and monthly aggregations support different reporting views. CSV downloads provide filtered records, monthly summaries and product analysis.
+Use Python 3.10 or newer. From the repository directory:
 
-## Data and metric definitions
-
-`load_data()` generates one row per calendar day from January 2023 through December 2024. Each row receives a region, product, segment and channel; it represents a synthetic daily observation, not an individual customer transaction.
-
-- Revenue and orders: sums across selected rows.
-- Profit: generated revenue minus generated cost.
-- Profit margin: total profit divided by total revenue, consistently applied to KPIs, product summaries and monthly exports. Margin comparisons use percentage points; daily records retain their row-level margins.
-- Segment and product average order value: aggregated revenue divided by aggregated orders.
-- Date presets are relative to the latest date in the sample, not today's date.
-
-Previous-period comparisons use the immediately preceding window with the same number of inclusive calendar days and the same dimension filters. Changes are hidden when either window lacks full sample coverage or no prior records match. Percentage changes with zero or negative baselines are unavailable. Last 30/90 Days includes exactly 30/90 days; Last 6 Months uses a calendar-month offset.
-
-## Run locally
-
-Use **Python 3.10 or newer**.
-
-```bash
-git clone https://github.com/amit1820/interactive-bi-analytics-app.git
-cd interactive-bi-analytics-app
-python -m venv .venv
+```powershell
+py -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m streamlit run app.py
 ```
 
-Activate the environment:
+On macOS/Linux, use `python3 -m venv .venv` and `.venv/bin/python` for the remaining commands. No database, API credentials or Docker are needed.
 
-- Windows PowerShell: `.venv\Scripts\Activate.ps1`
-- macOS/Linux: `source .venv/bin/activate`
+## Data model
 
-Then:
+`revenue.py` generates 600 accounts with seed 42 across January 2023–December 2025:
 
-```bash
-python -m pip install -r requirements.txt
-python -m streamlit run app.py
+| Table | Grain | Links |
+|---|---|---|
+| Customers | One account | customer_id |
+| Subscriptions | One monthly subscription per account | customer_id, subscription_id |
+| Invoices | One active subscription per month | customer_id, subscription_id, invoice_id |
+| Cancellations | One cancellation event | customer_id, subscription_id |
+
+Acquisition segment, region and channel stay fixed. Monthly price changes model expansion and contraction. Cancellation takes effect before billing that month. There are no reactivations, annual plans, taxes, prorations, refunds or payment defaults. Monthly invoice amount equals month-end MRR under these simplifying assumptions; it is not cash collection data.
+
+Segment-specific starting price and cancellation assumptions are illustrative. Retention patterns are generated, not evidence about a real business.
+
+## Metric contract
+
+- Closing MRR = opening MRR + new + expansion − contraction − churn.
+- NRR = current MRR from the opening customer base / opening MRR.
+- GRR = (opening MRR − contraction − churn) / opening MRR.
+- Customer churn = opening customers lost / opening active customers.
+- Annualized run rate = current MRR × 12; not realized annual revenue or a forecast.
+- Customer cohort retention uses original cohort size; revenue cohort retention uses original cohort MRR. Revenue retention can exceed 100%.
+- Empty denominators display unavailable values. First-month comparisons have no opening base.
+- Filters apply fixed customer attributes to both sides of comparisons. All views and exports end at the selected reporting month; future cohort ages remain missing.
+
+## Verification
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+.\.venv\Scripts\python.exe -m pytest -q
 ```
 
-Open the local URL printed by Streamlit. No API key, database or uploaded dataset is required.
+Tests verify keys and relationships, cancellation timing, invoice totals, all monthly bridges by segment, independently calculated movement examples, cohort censoring, reproducibility, every page at initial and final reporting months, empty filters and search.
 
-## A short walkthrough
+## Hosting
 
-1. Start with all dimensions selected and the default six-month sample window.
-2. Review revenue, profit and orders in Overview.
-3. Select one region and compare products and customer segments.
-4. Inspect the underlying daily observations in Detailed Data.
-5. Export a CSV to examine the same filtered population outside the app.
+Streamlit Community Cloud entry point: `app.py`; dependencies: `requirements.txt`. The app generates its sample locally and needs no secrets. This repository does not imply an already deployed public URL.
 
-## Implementation
+## Scope
 
-`app.py` contains cached sample-data generation, sidebar controls, pandas filtering and aggregation, Plotly charts and CSV exports. `metrics.py` defines comparison windows and KPI calculations. `requirements.txt` lists the runtime dependencies.
-
-To connect real data, replace `load_data()` and define its grain, currency, date coverage and validation rules before reusing the KPI calculations.
-
-## Regression checks
-
-```bash
-python -m pip install -r requirements-dev.txt
-python -m pytest -q
-```
-
-Tests cover inclusive comparison windows, missing dates, metric calculations, exact presets, empty filters and recovery, partial date selection, unavailable comparisons and single-bucket charts. Trend lines require at least two time buckets.
-
-## Current limits
-
-- Synthetic data cannot establish measured business impact.
-- No authentication, persistent database or scheduled ingestion is implemented.
-- Dependencies use minimum versions rather than a reproducible lockfile.
-- Exports are CSV; Excel and PDF exports are not implemented.
-
-Built by [Amit Kumar](https://amitkumaranalytics.com).
-
+This upgrade replaces the original random daily-observation BI dashboard. The focus is traceable commercial analysis and explicit metric definitions. Scenario forecasting, actual-versus-target reporting and predictive customer risk scoring are not implemented. Real adoption would require source contracts, billing edge-case handling, access control and validated revenue accounting policies.
